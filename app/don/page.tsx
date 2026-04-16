@@ -163,9 +163,9 @@ function DonPageContent() {
     if (!finalAmount || finalAmount <= 0) { setError('Veuillez saisir un montant valide.'); return; }
     setSubmitting(true);
     const { data: donor, error: donorErr } = await supabase.from('donors').insert({ nom: donorName.trim() || 'Anonyme' }).select().single();
-    if (donorErr) { setError('Une erreur est survenue.'); setSubmitting(false); return; }
+    if (donorErr || !donor) { setError('Une erreur est survenue.'); setSubmitting(false); return; }
     const { error: donErr } = await supabase.from('donations').insert({
-      donor_id: donor.id, leader_id: leader?.id || null, project_id: selectedProject || null,
+      donor_id: (donor as { id: string }).id, leader_id: leader?.id || null, project_id: selectedProject || null,
       montant: finalAmount, methode: 'cash', statut: 'pending',
     });
     if (donErr) setError("Une erreur est survenue lors de l'enregistrement.");

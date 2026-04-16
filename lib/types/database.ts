@@ -25,6 +25,7 @@ export interface Database {
           role?: 'super_admin' | 'leader';
           created_at?: string;
         };
+        Relationships: [];
       };
       leaders: {
         Row: {
@@ -48,6 +49,7 @@ export interface Database {
           slug?: string;
           created_at?: string;
         };
+        Relationships: [];
       };
       projects: {
         Row: {
@@ -71,6 +73,7 @@ export interface Database {
           objectif?: number;
           created_at?: string;
         };
+        Relationships: [];
       };
       donors: {
         Row: {
@@ -121,7 +124,16 @@ export interface Database {
           statut?: 'paid' | 'pending' | 'cash_validated';
           created_at?: string;
         };
+        Relationships: [];
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: {
+      user_role: 'super_admin' | 'leader';
+      donation_method: 'stripe' | 'paypal' | 'cash';
+      donation_status: 'paid' | 'pending' | 'cash_validated';
+    };
+    CompositeTypes: Record<string, never>;
   };
 }

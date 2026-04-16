@@ -44,9 +44,9 @@ export default function AjouterDonPage() {
     const montant = parseFloat(form.montant);
     if (!montant || montant <= 0) { setError('Le montant doit être supérieur à 0.'); setLoading(false); return; }
     const { data: donor, error: donorErr } = await supabase.from('donors').insert({ nom: form.donorName.trim() || 'Anonyme' }).select().single();
-    if (donorErr) { setError("Erreur lors de l'enregistrement du donateur."); setLoading(false); return; }
+    if (donorErr || !donor) { setError("Erreur lors de l'enregistrement du donateur."); setLoading(false); return; }
     const { error: donErr } = await supabase.from('donations').insert({
-      donor_id: donor.id,
+      donor_id: (donor as { id: string }).id,
       leader_id: form.leaderId || null,
       project_id: form.projectId || null,
       montant,

@@ -35,7 +35,7 @@ export default function MonEspacePage() {
     ]);
     const leader = leaderRes.data as Leader | null;
     setMyLeader(leader);
-    const allDonations = (donationsRes.data || []) as Donation[];
+    const allDonations = (donationsRes.data || []) as unknown as Donation[];
     setMyDonations(leader ? allDonations.filter(d => d.leader_id === leader.id) : []);
     const leaders = (allLeadersRes.data || []) as Leader[];
     setRanking(leaders.map(l => {

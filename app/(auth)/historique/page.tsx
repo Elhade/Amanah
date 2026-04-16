@@ -27,7 +27,7 @@ export default function HistoriquePage() {
       supabase.from('projects').select('*'),
       supabase.from('leaders').select('*'),
     ]);
-    setDonations((donationsRes.data || []) as Donation[]);
+    setDonations((donationsRes.data || []) as unknown as Donation[]);
     setProjects((projectsRes.data || []) as Project[]);
     setLeaders((leadersRes.data || []) as Leader[]);
     setLoading(false);

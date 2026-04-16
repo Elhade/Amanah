@@ -41,7 +41,7 @@ export default function DashboardPage() {
       supabase.from('leaders').select('*'),
     ]);
 
-    const donations = (donationsRes.data || []) as Donation[];
+    const donations = (donationsRes.data || []) as unknown as Donation[];
     const projects = (projectsRes.data || []) as Project[];
     const leaders = (leadersRes.data || []) as Leader[];
 
