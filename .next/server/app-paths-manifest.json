@@ -4,5 +4,6 @@
   "/(auth)/dashboard/page": "app/(auth)/dashboard/page.js",
   "/(auth)/historique/page": "app/(auth)/historique/page.js",
   "/(auth)/responsables/page": "app/(auth)/responsables/page.js",
-  "/(auth)/ajouter-don/page": "app/(auth)/ajouter-don/page.js"
+  "/(auth)/ajouter-don/page": "app/(auth)/ajouter-don/page.js",
+  "/(auth)/mon-espace/page": "app/(auth)/mon-espace/page.js"
 }

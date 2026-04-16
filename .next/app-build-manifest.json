@@ -40,6 +40,11 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(auth)/ajouter-don/page.js"
+    ],
+    "/(auth)/mon-espace/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(auth)/mon-espace/page.js"
     ]
   }
 }
