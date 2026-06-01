@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', {
-  apiVersion: '2023-10-16',
-});
+import type Stripe from 'stripe';
+import { stripe } from '@/lib/stripe/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import {
+  getDonationByIntentId,
+  updateDonationStatut,
+} from '@/services/donations.service';
+import { updateDonorPaymentMethod } from '@/services/donors.service';
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -16,36 +18,78 @@ export async function POST(req: NextRequest) {
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET ?? '');
+    event = stripe.webhooks.constructEvent(
+      body,
+      signature,
+      process.env.STRIPE_WEBHOOK_SECRET ?? ''
+    );
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Webhook verification failed';
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 
-  if (event.type === 'payment_intent.succeeded') {
-    const intent = event.data.object as Stripe.PaymentIntent;
-    const meta = intent.metadata ?? {};
+  switch (event.type) {
+    case 'payment_intent.succeeded': {
+      const intent = event.data.object as Stripe.PaymentIntent;
+      const meta = intent.metadata ?? {};
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-      process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
-    );
+      if (meta.payment_type === 'prelevement_sepa') {
+        const donation = await getDonationByIntentId(intent.id);
+        if (donation) await updateDonationStatut(donation.id, 'paid');
+      } else {
+        // Paiement carte : crée le donateur et le don
+        const supabase = createAdminClient();
+        const { data: donor } = await supabase
+          .from('donors')
+          .insert({
+            nom: meta.donor_name || 'Anonyme',
+            email: meta.donor_email || null,
+            telephone: meta.donor_phone || null,
+          })
+          .select('id')
+          .single();
 
-    const { data: donor } = await supabase
-      .from('donors')
-      .insert({ nom: meta.donor_name || 'Anonyme' })
-      .select()
-      .single();
+        if (donor) {
+          await supabase.from('donations').insert({
+            donor_id: donor.id,
+            leader_id: meta.leader_id || null,
+            project_id: meta.project_id || null,
+            montant: intent.amount / 100,
+            methode: 'card',
+            statut: 'paid',
+            stripe_payment_intent_id: intent.id,
+          });
+        }
+      }
+      break;
+    }
 
-    if (donor) {
-      await supabase.from('donations').insert({
-        donor_id: donor.id,
-        leader_id: meta.leader_id || null,
-        project_id: meta.project_id || null,
-        montant: intent.amount / 100,
-        methode: 'stripe',
-        statut: 'paid',
-      });
+    case 'payment_intent.processing': {
+      const intent = event.data.object as Stripe.PaymentIntent;
+      const donation = await getDonationByIntentId(intent.id);
+      if (donation) await updateDonationStatut(donation.id, 'processing');
+      break;
+    }
+
+    case 'payment_intent.payment_failed': {
+      const intent = event.data.object as Stripe.PaymentIntent;
+      const donation = await getDonationByIntentId(intent.id);
+      if (donation) await updateDonationStatut(donation.id, 'failed');
+      break;
+    }
+
+    case 'setup_intent.succeeded': {
+      const setupIntent = event.data.object as Stripe.SetupIntent;
+      const donorId = setupIntent.metadata?.donor_id;
+      const paymentMethodId =
+        typeof setupIntent.payment_method === 'string'
+          ? setupIntent.payment_method
+          : setupIntent.payment_method?.id;
+
+      if (donorId && paymentMethodId) {
+        await updateDonorPaymentMethod(donorId, paymentMethodId);
+      }
+      break;
     }
   }
 

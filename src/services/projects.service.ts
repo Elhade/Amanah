@@ -17,6 +17,8 @@ export async function getProjects() {
 
 }
 
+
+
 export async function getProjectsWithStats(): Promise<ProjectWithStats[]> {
   const [projects, totals] = await Promise.all([
     getProjects(),

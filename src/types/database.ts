@@ -79,10 +79,11 @@ export interface Database {
         Row: {
           id: string;
           nom: string;
-          pseudo?: string | null;
-          email?: string | null;
-          telephone?: string | null;
-          iban?: string | null;
+          pseudo: string | null;
+          email: string | null;
+          telephone: string | null;
+          stripe_customer_id: string | null;
+          stripe_payment_method_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -91,7 +92,8 @@ export interface Database {
           pseudo?: string | null;
           email?: string | null;
           telephone?: string | null;
-          iban?: string | null;
+          stripe_customer_id?: string | null;
+          stripe_payment_method_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -100,7 +102,8 @@ export interface Database {
           pseudo?: string | null;
           email?: string | null;
           telephone?: string | null;
-          iban?: string | null;
+          stripe_customer_id?: string | null;
+          stripe_payment_method_id?: string | null;
           created_at?: string;
         };
         Relationships: [];
@@ -112,8 +115,9 @@ export interface Database {
           leader_id: string | null;
           project_id: string | null;
           montant: number;
-          methode: 'stripe' | 'paypal' | 'cash' | 'virement';
-          statut: 'paid' | 'pending' | 'cash_validated';
+          methode: 'card' | 'prelevement_sepa';
+          statut: 'pending' | 'processing' | 'paid' | 'failed' | 'cancelled' | 'refunded';
+          stripe_payment_intent_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -122,8 +126,9 @@ export interface Database {
           leader_id?: string | null;
           project_id?: string | null;
           montant: number;
-          methode?: 'stripe' | 'paypal' | 'cash' | 'virement';
-          statut?: 'paid' | 'pending' | 'cash_validated';
+          methode?: 'card' | 'prelevement_sepa';
+          statut?: 'pending' | 'processing' | 'paid' | 'failed' | 'cancelled' | 'refunded';
+          stripe_payment_intent_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -132,8 +137,9 @@ export interface Database {
           leader_id?: string | null;
           project_id?: string | null;
           montant?: number;
-          methode?: 'stripe' | 'paypal' | 'cash' | 'virement';
-          statut?: 'paid' | 'pending' | 'cash_validated';
+          methode?: 'card' | 'prelevement_sepa';
+          statut?: 'pending' | 'processing' | 'paid' | 'failed' | 'cancelled' | 'refunded';
+          stripe_payment_intent_id?: string | null;
           created_at?: string;
         };
         Relationships: [];
@@ -143,8 +149,8 @@ export interface Database {
     Functions: Record<string, never>;
     Enums: {
       user_role: 'super_admin' | 'leader';
-      donation_method: 'stripe' | 'paypal' | 'cash';
-      donation_status: 'paid' | 'pending' | 'cash_validated';
+      donation_method: 'card' | 'prelevement_sepa';
+      donation_status: 'pending' | 'processing' | 'paid' | 'failed' | 'cancelled' | 'refunded';
     };
     CompositeTypes: Record<string, never>;
   };

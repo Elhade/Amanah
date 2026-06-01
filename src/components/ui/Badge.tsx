@@ -8,6 +8,7 @@ const config: Record<DonationStatus, { label: string; className: string; dot: st
   paid: { label: 'Payé', className: 'bg-emerald-100 text-emerald-700 border border-emerald-200', dot: 'bg-emerald-500' },
   cash_validated: { label: 'Cash', className: 'bg-amber-100 text-amber-700 border border-amber-200', dot: 'bg-amber-500' },
   pending: { label: 'En attente', className: 'bg-red-100 text-red-600 border border-red-200', dot: 'bg-red-500' },
+  cancelled: { label: 'Annulé', className: 'bg-gray-100 text-gray-500 border border-gray-200', dot: 'bg-gray-400' },
 };
 
 export function Badge({ status }: BadgeProps) {

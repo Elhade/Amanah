@@ -1,8 +1,8 @@
 export type { Database } from './database';
 
 export type UserRole = 'super_admin' | 'leader';
-export type DonationMethod = 'stripe' | 'paypal' | 'cash' | 'virement';
-export type DonationStatus = 'paid' | 'pending' | 'cash_validated';
+export type DonationMethod = 'card' | 'prelevement_sepa';
+export type DonationStatus = 'pending' | 'processing' | 'paid' | 'failed' | 'cancelled' | 'refunded';
 
 export interface Profile {
   id: string;
@@ -25,6 +25,7 @@ export interface Project {
   nom: string;
   description: string;
   objectif: number;
+  image_url?: string | null;
   created_at: string;
 }
 
@@ -34,7 +35,8 @@ export interface Donor {
   pseudo?: string | null;
   email?: string | null;
   telephone?: string | null;
-  iban?: string | null;
+  stripe_customer_id?: string | null;
+  stripe_payment_method_id?: string | null;
   created_at: string;
 }
 
@@ -46,6 +48,7 @@ export interface Donation {
   montant: number;
   methode: DonationMethod;
   statut: DonationStatus;
+  stripe_payment_intent_id: string | null;
   created_at: string;
   donors?: { nom: string } | null;
   leaders?: { nom_affichage: string; slug: string } | null;

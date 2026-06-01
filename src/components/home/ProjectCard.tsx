@@ -3,13 +3,15 @@
 import { useState } from 'react';
 import { Lock, ShieldCheck, HandHeart, ChevronUp } from 'lucide-react';
 import type { ProjectWithStats } from '@/types/project';
+import type { Leader } from '@/types';
 import { DonationForm } from './DonationForm';
 
 interface Props {
   project: ProjectWithStats;
+  leader?: Leader | null;
 }
 
-export function ProjectCard({ project }: Props) {
+export function ProjectCard({ project, leader }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
   const percentage = Math.min(project.pourcentage, 100);
 
@@ -120,7 +122,7 @@ export function ProjectCard({ project }: Props) {
             <div className="flex-1 border-t-2 border-dashed border-gray-200" />
           </div>
 
-          <DonationForm project={project} />
+          <DonationForm project={project} leader={leader} />
         </div>
       </div>
 

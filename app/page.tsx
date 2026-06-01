@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Heart } from 'lucide-react';
 import { getProjectsWithStats } from '@/services/projects.service';
+import { getLeaderBySlug } from '@/services/leaders.service';
 import { ProjectGrid } from '@/components/home/ProjectGrid';
 
 export const metadata: Metadata = {
@@ -10,8 +11,17 @@ export const metadata: Metadata = {
     'Participez à des projets humanitaires et faites une différence dans la vie des nécessiteux.',
 };
 
-export default async function HomePage() {
-  const projects = await getProjectsWithStats();
+interface Props {
+  searchParams: Promise<{ ref?: string }>;
+}
+
+export default async function HomePage({ searchParams }: Props) {
+  const { ref } = await searchParams;
+
+  const [projects, leader] = await Promise.all([
+    getProjectsWithStats(),
+    ref ? getLeaderBySlug(ref) : Promise.resolve(null),
+  ]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-900 via-emerald-800 to-emerald-950 relative">
@@ -40,15 +50,24 @@ export default async function HomePage() {
 
         {/* Hero */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-white mb-3">
-            Projets solidaires
-          </h1>
+          {leader ? (
+            <>
+              <p className="text-emerald-300 text-sm mb-1">Collecte organisée par</p>
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-white mb-3">
+                {leader.nom_affichage}
+              </h1>
+            </>
+          ) : (
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-white mb-3">
+              Projets solidaires
+            </h1>
+          )}
           <p className="text-emerald-300 text-sm sm:text-base max-w-sm mx-auto">
             Chaque don compte. Participez à nos projets humanitaires et aidez ceux qui en ont besoin.
           </p>
         </div>
 
-        <ProjectGrid projects={projects} />
+        <ProjectGrid projects={projects} leader={leader} />
 
         {/* Footer */}
         <div className="mt-8 flex items-center justify-between text-xs text-emerald-400/50">
