@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Users, Plus, Copy, Check, CreditCard as Edit3, Trash2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/lib/contexts/AuthContext';
-import type { Leader, Profile } from '@/lib/types';
+import { useAuth } from '@/contexts/AuthContext';
+import type { Leader, Profile } from '@/types';
 
 export default function ResponsablesPage() {
   const { profile, loading: authLoading } = useAuth();

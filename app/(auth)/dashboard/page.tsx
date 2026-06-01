@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { StatCard } from '@/components/ui/StatCard';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Badge } from '@/components/ui/Badge';
-import type { Donation, Project, Leader } from '@/lib/types';
+import type { Donation, Project, Leader } from '@/types';
 
 interface ProjectStats {
   project: Project;

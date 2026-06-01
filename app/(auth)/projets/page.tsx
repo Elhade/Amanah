@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FolderOpen, Plus, Target, Trash2, CreditCard as Edit3, Check, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/lib/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import type { Project } from '@/lib/types';
+import type { Project } from '@/types';
 
 export default function ProjetsPage() {
   const { profile, loading: authLoading } = useAuth();

@@ -6,7 +6,7 @@ import { History, Search, Filter, HandHeart } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Badge } from '@/components/ui/Badge';
 import { MethodBadge } from '@/components/ui/MethodBadge';
-import type { Donation, Project, Leader } from '@/lib/types';
+import type { Donation, Project, Leader } from '@/types';
 
 export default function HistoriquePage() {
   const router = useRouter();

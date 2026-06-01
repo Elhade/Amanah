@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { HandHeart, CheckCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/lib/contexts/AuthContext';
-import type { Project, Leader } from '@/lib/types';
+import { useAuth } from '@/contexts/AuthContext';
+import type { Project, Leader } from '@/types';
 
 export default function AjouterDonPage() {
   const { profile } = useAuth();

@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react';
 import { DollarSign, Users, Share2, Trophy, HandHeart, Copy, Check } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/lib/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { StatCard } from '@/components/ui/StatCard';
 import { Badge } from '@/components/ui/Badge';
 import { useRouter } from 'next/navigation';
-import type { Donation, Leader } from '@/lib/types';
+import type { Donation, Leader } from '@/types';
 
 interface LeaderRanking {
   leader: Leader;
