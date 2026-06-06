@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Heart } from 'lucide-react';
@@ -50,18 +52,9 @@ export default async function HomePage({ searchParams }: Props) {
 
         {/* Hero */}
         <div className="text-center mb-8">
-          {leader ? (
-            <>
-              <p className="text-emerald-300 text-sm mb-1">Collecte organisée par</p>
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-white mb-3">
-                {leader.nom_affichage}
-              </h1>
-            </>
-          ) : (
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-white mb-3">
-              Projets solidaires
-            </h1>
-          )}
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-white mb-3">
+            Projets solidaires
+          </h1>
           <p className="text-emerald-300 text-sm sm:text-base max-w-sm mx-auto">
             Chaque don compte. Participez à nos projets humanitaires et aidez ceux qui en ont besoin.
           </p>

@@ -5,11 +5,9 @@ interface MethodBadgeProps {
 }
 
 const config: Record<DonationMethod, { label: string; className: string }> = {
-  cash: { label: 'Cash', className: 'bg-gray-100 text-gray-600 border border-gray-200' },
-  stripe: { label: 'Carte', className: 'bg-blue-100 text-blue-600 border border-blue-200' },
-  paypal: { label: 'PayPal', className: 'bg-sky-100 text-sky-600 border border-sky-200' },
-  virement: { label: 'Virement', className: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
-  sepa: { label: 'SEPA', className: 'bg-violet-100 text-violet-700 border border-violet-200' },
+  card:             { label: 'Carte',            className: 'bg-blue-100 text-blue-600 border border-blue-200'         },
+  prelevement_sepa: { label: 'Prélèvement SEPA', className: 'bg-violet-100 text-violet-700 border border-violet-200'   },
+  cash:             { label: 'Espèces',           className: 'bg-amber-100 text-amber-700 border border-amber-200'     },
 };
 
 export function MethodBadge({ method }: MethodBadgeProps) {

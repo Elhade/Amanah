@@ -4,10 +4,8 @@ import {
   findDonorByIdentifier,
   isPseudoTaken,
   checkEmailExists,
-  createCasualDonor,
   createRecurrentDonor,
   type FoundDonor,
-  type CasualDonorInput,
   type RecurrentDonorInput,
 } from '@/services/donors.service';
 
@@ -23,13 +21,6 @@ export async function findDonorByIdentifierAction(
 /** Vérifie si un pseudo est déjà pris. */
 export async function isPseudoTakenAction(pseudo: string): Promise<boolean> {
   return isPseudoTaken(pseudo);
-}
-
-/** Crée un donateur ponctuel (espèces ou carte) sans pseudo ni IBAN. */
-export async function createCasualDonorAction(
-  input: CasualDonorInput
-): Promise<{ id: string }> {
-  return createCasualDonor(input);
 }
 
 /** Crée un donateur récurrent (SEPA) avec pseudo et IBAN. */

@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
 
     const donation = await getDonationByIntentId(payment_intent_id);
     if (donation) {
-      await updateDonationStatut(donation.id, action === 'annule' ? 'cancelled' : 'refunded');
+      await updateDonationStatut(donation.id, 'failed');
     }
 
     const message =

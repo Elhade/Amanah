@@ -27,7 +27,7 @@ export async function createCardPaymentIntent(
   return stripe.paymentIntents.create({
     amount: Math.round(params.amount),
     currency: params.currency ?? 'eur',
-    automatic_payment_methods: { enabled: true },
+    payment_method_types: ['card'],
     metadata: { ...params.metadata, payment_type: 'card' },
   });
 }
@@ -67,6 +67,38 @@ export async function createSepaPaymentIntent(
     confirm: true,
     off_session: true,
     metadata: { ...params.metadata, payment_type: 'prelevement_sepa' },
+  });
+}
+
+// Débite l'IBAN d'un leader pour remettre des espèces collectées sur le compte Stripe.
+export async function createCashRemittancePaymentIntent(params: {
+  customerId: string;
+  paymentMethodId: string;
+  amount: number; // en centimes
+  metadata: Record<string, string>;
+}): Promise<Stripe.PaymentIntent> {
+  return stripe.paymentIntents.create({
+    amount: Math.round(params.amount),
+    currency: 'eur',
+    customer: params.customerId,
+    payment_method: params.paymentMethodId,
+    payment_method_types: ['sepa_debit'],
+    confirm: true,
+    off_session: true,
+    metadata: { ...params.metadata, payment_type: 'cash_remittance' },
+  });
+}
+
+// Enregistre le mandat SEPA d'un leader pour les remises futures.
+export async function createLeaderSepaSetupIntent(params: {
+  customerId: string;
+  leaderId: string;
+}): Promise<Stripe.SetupIntent> {
+  return stripe.setupIntents.create({
+    customer: params.customerId,
+    payment_method_types: ['sepa_debit'],
+    usage: 'off_session',
+    metadata: { leader_id: params.leaderId },
   });
 }
 

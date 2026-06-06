@@ -10,9 +10,6 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
-      <head>
-        <script src="https://js.stripe.com/v3/" async />
-      </head>
       <body>
         <AuthProvider>{children}</AuthProvider>
       </body>

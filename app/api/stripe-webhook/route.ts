@@ -1,12 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import type Stripe from 'stripe';
 import { stripe } from '@/lib/stripe/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import {
   getDonationByIntentId,
   updateDonationStatut,
+  createDonation,
+  updateDonationsStatutByRemittance,
+  clearRemittanceFromDonations,
 } from '@/services/donations.service';
-import { updateDonorPaymentMethod } from '@/services/donors.service';
+import { createCasualDonor, updateDonorStripeFields } from '@/services/donors.service';
+import {
+  getRemittanceByIntentId,
+  updateRemittanceStatut,
+} from '@/services/remittances.service';
+import { upsertBalanceTransaction } from '@/services/balance-transactions.service';
+
+async function extractAndStoreBalanceTransaction(intent: Stripe.PaymentIntent): Promise<string | null> {
+  try {
+    const chargeId = typeof intent.latest_charge === 'string'
+      ? intent.latest_charge
+      : (intent.latest_charge as Stripe.Charge | null)?.id;
+    if (!chargeId) return null;
+
+    const charge = await stripe.charges.retrieve(chargeId, { expand: ['balance_transaction'] });
+    const bt = charge.balance_transaction as Stripe.BalanceTransaction | null;
+    if (!bt || typeof bt !== 'object' || !('fee' in bt)) return null;
+
+    const result = await upsertBalanceTransaction({
+      stripeBtId: bt.id,
+      amount: bt.amount / 100,
+      fee: bt.fee / 100,
+      net: bt.net / 100,
+    });
+    return result?.id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -29,52 +60,109 @@ export async function POST(req: NextRequest) {
   }
 
   switch (event.type) {
-    case 'payment_intent.succeeded': {
+    case 'payment_intent.processing': {
       const intent = event.data.object as Stripe.PaymentIntent;
       const meta = intent.metadata ?? {};
 
-      if (meta.payment_type === 'prelevement_sepa') {
-        const donation = await getDonationByIntentId(intent.id);
-        if (donation) await updateDonationStatut(donation.id, 'paid');
-      } else {
-        // Paiement carte : crée le donateur et le don
-        const supabase = createAdminClient();
-        const { data: donor } = await supabase
-          .from('donors')
-          .insert({
-            nom: meta.donor_name || 'Anonyme',
-            email: meta.donor_email || null,
-            telephone: meta.donor_phone || null,
-          })
-          .select('id')
-          .single();
-
-        if (donor) {
-          await supabase.from('donations').insert({
-            donor_id: donor.id,
-            leader_id: meta.leader_id || null,
-            project_id: meta.project_id || null,
+      if (meta.payment_type === 'cash_remittance' && meta.remittance_id) {
+        await updateRemittanceStatut(meta.remittance_id, 'processing', intent.id);
+      } else if (meta.payment_type === 'prelevement_sepa' && meta.donor_id) {
+        const existing = await getDonationByIntentId(intent.id);
+        if (!existing) {
+          await createDonation({
+            donorId: meta.donor_id,
+            leaderId: meta.leader_id || null,
+            projectId: meta.project_id,
             montant: intent.amount / 100,
-            methode: 'card',
-            statut: 'paid',
-            stripe_payment_intent_id: intent.id,
+            methode: 'prelevement_sepa',
+            statut: 'processing',
+            stripePaymentIntentId: intent.id,
           });
         }
       }
       break;
     }
 
-    case 'payment_intent.processing': {
+    case 'payment_intent.succeeded': {
       const intent = event.data.object as Stripe.PaymentIntent;
-      const donation = await getDonationByIntentId(intent.id);
-      if (donation) await updateDonationStatut(donation.id, 'processing');
+      const meta = intent.metadata ?? {};
+
+      if (meta.payment_type === 'cash_remittance' && meta.remittance_id) {
+        let remittance = await getRemittanceByIntentId(intent.id);
+        if (!remittance) remittance = { id: meta.remittance_id, leader_id: meta.leader_id };
+        const btId = await extractAndStoreBalanceTransaction(intent);
+        await updateRemittanceStatut(remittance.id, 'cash_remitted', undefined, btId);
+        await updateDonationsStatutByRemittance(remittance.id, 'cash_remitted');
+        revalidatePath('/');
+
+      } else if (meta.payment_type === 'prelevement_sepa') {
+        const btId = await extractAndStoreBalanceTransaction(intent);
+        const donation = await getDonationByIntentId(intent.id);
+        if (donation) {
+          await updateDonationStatut(donation.id, 'paid', { balance_transaction_id: btId });
+        } else if (meta.donor_id) {
+          await createDonation({
+            donorId: meta.donor_id,
+            leaderId: meta.leader_id || null,
+            projectId: meta.project_id,
+            montant: intent.amount / 100,
+            methode: 'prelevement_sepa',
+            statut: 'paid',
+            stripePaymentIntentId: intent.id,
+            balanceTransactionId: btId,
+          });
+        }
+        revalidatePath('/');
+
+      } else {
+        // Carte CB
+        try {
+          const btId = await extractAndStoreBalanceTransaction(intent);
+          const pmId = typeof intent.payment_method === 'string'
+            ? intent.payment_method
+            : intent.payment_method?.id;
+          let donorNom = 'Anonyme', donorEmailVal = '', donorTel: string | undefined;
+          if (pmId) {
+            const pm = await stripe.paymentMethods.retrieve(pmId);
+            donorNom = pm.billing_details.name || 'Anonyme';
+            donorEmailVal = pm.billing_details.email || '';
+            donorTel = pm.billing_details.phone || undefined;
+          }
+          const { id: donorId } = await createCasualDonor({
+            nom: donorNom,
+            email: donorEmailVal,
+            telephone: donorTel,
+          });
+          await createDonation({
+            donorId,
+            leaderId: meta.leader_id || null,
+            projectId: meta.project_id || '',
+            montant: intent.amount / 100,
+            methode: 'card',
+            statut: 'paid',
+            stripePaymentIntentId: intent.id,
+            balanceTransactionId: btId,
+          });
+          revalidatePath('/');
+        } catch (err) {
+          console.error('[webhook] card donor/donation error:', err);
+          return NextResponse.json({ error: 'DB error' }, { status: 500 });
+        }
+      }
       break;
     }
 
     case 'payment_intent.payment_failed': {
       const intent = event.data.object as Stripe.PaymentIntent;
-      const donation = await getDonationByIntentId(intent.id);
-      if (donation) await updateDonationStatut(donation.id, 'failed');
+      const meta = intent.metadata ?? {};
+
+      if (meta.payment_type === 'cash_remittance' && meta.remittance_id) {
+        await updateRemittanceStatut(meta.remittance_id, 'failed');
+        await clearRemittanceFromDonations(meta.remittance_id);
+      } else {
+        const donation = await getDonationByIntentId(intent.id);
+        if (donation) await updateDonationStatut(donation.id, 'failed');
+      }
       break;
     }
 
@@ -85,9 +173,13 @@ export async function POST(req: NextRequest) {
         typeof setupIntent.payment_method === 'string'
           ? setupIntent.payment_method
           : setupIntent.payment_method?.id;
+      const customerId =
+        typeof setupIntent.customer === 'string'
+          ? setupIntent.customer
+          : setupIntent.customer?.id;
 
-      if (donorId && paymentMethodId) {
-        await updateDonorPaymentMethod(donorId, paymentMethodId);
+      if (donorId && paymentMethodId && customerId) {
+        await updateDonorStripeFields(donorId, paymentMethodId, customerId);
       }
       break;
     }

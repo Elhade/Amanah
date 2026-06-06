@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     }
 
     const paymentIntent = await createCardPaymentIntent({ amount, currency, metadata });
-
+   
     return NextResponse.json({ clientSecret: paymentIntent.client_secret });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Erreur interne';

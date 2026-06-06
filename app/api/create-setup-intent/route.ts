@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@/lib/supabase/server';
 import { createOrRetrieveStripeCustomer, createSepaSetupIntent } from '@/services/stripe.service';
-import { updateDonorStripeCustomer } from '@/services/donors.service';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,7 +11,13 @@ export async function POST(req: NextRequest) {
     }
 
     const customer = await createOrRetrieveStripeCustomer(email, nom);
-    await updateDonorStripeCustomer(donor_id, customer.id);
+
+    const supabase = createServerClient();
+    const { error: dbError } = await supabase
+      .from('donors')
+      .update({ stripe_customer_id: customer.id })
+      .eq('id', donor_id);
+    if (dbError) throw new Error('Impossible de sauvegarder le compte Stripe.');
 
     const setupIntent = await createSepaSetupIntent({ customerId: customer.id, donorId: donor_id });
 

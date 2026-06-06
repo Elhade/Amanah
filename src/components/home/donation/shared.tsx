@@ -20,29 +20,3 @@ export function Spinner() {
   );
 }
 
-export interface StripeInstance {
-  elements: (options: object) => StripeElements;
-  confirmPayment: (options: object) => Promise<{ error?: { message: string } }>;
-  confirmSetup: (options: object) => Promise<{
-    setupIntent?: { payment_method: string | { id: string } | null };
-    error?: { message: string };
-  }>;
-}
-
-export interface StripeElements {
-  create: (type: string, options?: object) => StripeElement;
-  getElement: (type: string) => StripeElement | null;
-  submit: () => Promise<{ error?: { message: string } }>;
-}
-
-export interface StripeElement {
-  mount: (el: HTMLElement) => void;
-  unmount: () => void;
-  on: (event: string, handler: () => void) => void;
-}
-
-declare global {
-  interface Window {
-    Stripe?: (key: string) => StripeInstance;
-  }
-}

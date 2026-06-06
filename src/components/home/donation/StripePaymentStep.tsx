@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Lock } from 'lucide-react';
-import { loadStripeClient } from '@/lib/stripe/client';
-import { Spinner, type StripeInstance, type StripeElements } from './shared';
+import type { Stripe, StripeElements, StripePaymentElement } from '@stripe/stripe-js';
+import { getStripePromise } from '@/lib/stripe/client';
+import { Spinner } from './shared';
 
 interface Props {
   clientSecret: string;
@@ -27,32 +28,53 @@ const STRIPE_APPEARANCE = {
 export function StripePaymentStep({ clientSecret, amount, onSuccess }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [ready, setReady] = useState(false);
 
-  const stripeRef = useRef<StripeInstance | null>(null);
+  const [donorName, setDonorName] = useState('');
+  const [donorEmail, setDonorEmail] = useState('');
+  const [donorPhone, setDonorPhone] = useState('');
+
+  const stripeRef = useRef<Stripe | null>(null);
   const elementsRef = useRef<StripeElements | null>(null);
-  const cardMountedRef = useRef(false);
-  const cardContainerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!clientSecret || !cardContainerRef.current || cardMountedRef.current) return;
+    if (!clientSecret) return;
 
-    const mount = () => {
-      const instance = loadStripeClient();
-      if (!instance) return;
-      stripeRef.current = instance;
-      elementsRef.current = instance.elements({ clientSecret, appearance: STRIPE_APPEARANCE });
-      elementsRef.current.create('payment').mount(cardContainerRef.current!);
-      cardMountedRef.current = true;
+    let paymentElement: StripePaymentElement | null = null;
+
+    getStripePromise().then((stripe) => {
+      if (!stripe || !containerRef.current) return;
+      stripeRef.current = stripe;
+
+      const elements = stripe.elements({ clientSecret, appearance: STRIPE_APPEARANCE });
+      elementsRef.current = elements;
+
+      paymentElement = elements.create('payment', {
+        fields: { billingDetails: { name: 'never', email: 'never', phone: 'never', address: 'never' } },
+        wallets: { link: 'never' },
+      });
+      paymentElement.on('ready', () => setReady(true));
+      paymentElement.mount(containerRef.current);
+    });
+
+    return () => {
+      paymentElement?.destroy();
+      setReady(false);
     };
-
-    if (window.Stripe) { mount(); return; }
-    const interval = setInterval(() => { if (window.Stripe) { clearInterval(interval); mount(); } }, 100);
-    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientSecret]);
 
   const handleConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!stripeRef.current || !elementsRef.current) return;
+
+    if (!donorName.trim()) { setError('Le nom complet est obligatoire.'); return; }
+    if (!donorEmail.trim() || !/\S+@\S+\.\S+/.test(donorEmail)) {
+      setError("L'adresse e-mail est invalide.");
+      return;
+    }
+
     setError('');
     setSubmitting(true);
 
@@ -66,7 +88,17 @@ export function StripePaymentStep({ clientSecret, amount, onSuccess }: Props) {
     const { error: confirmErr } = await stripeRef.current.confirmPayment({
       elements: elementsRef.current,
       clientSecret,
-      confirmParams: { return_url: window.location.href },
+      confirmParams: {
+        return_url: window.location.href,
+        payment_method_data: {
+          billing_details: {
+            name: donorName.trim(),
+            email: donorEmail.trim(),
+            phone: donorPhone.trim(),
+            address: { country: 'FR', line1: '', city: '', state: '', postal_code: '' },
+          },
+        },
+      },
       redirect: 'if_required',
     });
 
@@ -77,6 +109,9 @@ export function StripePaymentStep({ clientSecret, amount, onSuccess }: Props) {
       onSuccess();
     }
   };
+
+  const inputClass =
+    'w-full px-4 py-3 border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent';
 
   return (
     <form onSubmit={handleConfirm} className="space-y-5">
@@ -91,17 +126,51 @@ export function StripePaymentStep({ clientSecret, amount, onSuccess }: Props) {
         </div>
       </div>
 
+      <div className="space-y-3">
+        <input
+          type="text"
+          placeholder="Nom complet *"
+          value={donorName}
+          onChange={e => setDonorName(e.target.value)}
+          className={inputClass}
+          autoComplete="name"
+        />
+        <input
+          type="email"
+          placeholder="Adresse e-mail *"
+          value={donorEmail}
+          onChange={e => setDonorEmail(e.target.value)}
+          className={inputClass}
+          autoComplete="email"
+        />
+        <input
+          type="tel"
+          placeholder="Téléphone (optionnel)"
+          value={donorPhone}
+          onChange={e => setDonorPhone(e.target.value)}
+          className={inputClass}
+          autoComplete="tel"
+        />
+      </div>
+
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-3">
           <p className="text-red-600 text-sm">{error}</p>
         </div>
       )}
 
-      <div ref={cardContainerRef} className="min-h-[120px]" />
+      <div className="relative min-h-[200px]">
+        {!ready && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Spinner />
+          </div>
+        )}
+        <div ref={containerRef} />
+      </div>
 
       <button
         type="submit"
-        disabled={submitting}
+        disabled={submitting || !ready}
         className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold rounded-2xl shadow-lg shadow-emerald-600/25 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:scale-100 disabled:shadow-none text-base flex items-center justify-center gap-2"
       >
         {submitting

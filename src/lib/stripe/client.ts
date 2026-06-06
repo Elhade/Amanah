@@ -1,7 +1,11 @@
-import type { StripeInstance } from '@/components/home/donation/shared';
+import { loadStripe } from '@stripe/stripe-js';
+import type { Stripe } from '@stripe/stripe-js';
 
-export function loadStripeClient(): StripeInstance | null {
-  const pk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-  if (!pk || typeof window === 'undefined' || !window.Stripe) return null;
-  return window.Stripe(pk);
+let stripePromise: Promise<Stripe | null> | null = null;
+
+export function getStripePromise(): Promise<Stripe | null> {
+  if (!stripePromise) {
+    stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+  }
+  return stripePromise;
 }
