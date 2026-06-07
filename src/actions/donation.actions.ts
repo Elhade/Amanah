@@ -74,7 +74,8 @@ export async function submitCashDonation(input: {
 
 export async function triggerCashRemittance(
   leaderId: string,
-  donationIds: string[]
+  donationIds: string[],
+  options?: { personalAmount?: number; personalProjectId?: string; personalDonorId?: string }
 ): Promise<ActionResult<{ remittanceId: string }>> {
   try {
     const supabase = createServerClient();
@@ -116,18 +117,31 @@ export async function triggerCashRemittance(
       return { ok: false, error: 'Aucun don éligible trouvé.' };
     }
 
-    const montant = donations.reduce((s, d) => s + Number(d.montant), 0);
+    const cashMontant = donations.reduce((s, d) => s + Number(d.montant), 0);
+    const personalAmount = options?.personalAmount ?? 0;
+    const montantTotal = cashMontant + personalAmount;
     const verifiedIds = donations.map(d => d.id);
 
     // Crée la remise d'abord pour obtenir son ID à injecter dans les métadonnées Stripe
-    const { id: remittanceId } = await createRemittance({ leaderId, montant });
+    const { id: remittanceId } = await createRemittance({ leaderId, montant: montantTotal });
     await linkDonationsToRemittance(verifiedIds, remittanceId);
+
+    const metadata: Record<string, string> = {
+      payment_type: 'cash_remittance',
+      leader_id: leaderId,
+      remittance_id: remittanceId,
+    };
+    if (personalAmount > 0 && options?.personalDonorId && options?.personalProjectId) {
+      metadata.personal_amount = String(personalAmount);
+      metadata.personal_donor_id = options.personalDonorId;
+      metadata.personal_project_id = options.personalProjectId;
+    }
 
     const intent = await createCashRemittancePaymentIntent({
       customerId,
       paymentMethodId,
-      amount: Math.round(montant * 100),
-      metadata: { leader_id: leaderId, remittance_id: remittanceId, payment_type: 'cash_remittance' },
+      amount: Math.round(montantTotal * 100),
+      metadata,
     });
 
     // Passe les donations en "processing" pour refléter les 2-3j de traitement SEPA
@@ -209,6 +223,61 @@ export async function getRecentDonationsForLeader(leaderId: string): Promise<Act
       createdAt: d.created_at,
     }));
     return { ok: true, data: rows };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Une erreur est survenue.' };
+  }
+}
+
+export interface SepaEnabledDonor { id: string; nom: string; pseudo: string | null; }
+
+export async function getSepaEnabledDonors(): Promise<ActionResult<SepaEnabledDonor[]>> {
+  try {
+    const supabase = createServerClient();
+    const { data, error } = await supabase
+      .from('donors')
+      .select('id, nom, pseudo')
+      .not('stripe_payment_method_id', 'is', null)
+      .order('nom');
+    if (error) throw new Error(error.message);
+    return { ok: true, data: (data ?? []) as SepaEnabledDonor[] };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Erreur.' };
+  }
+}
+
+export async function triggerSalaryDonation(input: {
+  donorId: string;
+  montant: number;
+  projectId: string;
+  leaderId: string | null;
+}): Promise<ActionResult<{ paymentIntentId: string }>> {
+  try {
+    const supabase = createServerClient();
+    const { data: donor } = await supabase
+      .from('donors')
+      .select('stripe_customer_id, stripe_payment_method_id')
+      .eq('id', input.donorId)
+      .single();
+
+    if (!donor?.stripe_customer_id || !donor?.stripe_payment_method_id) {
+      return { ok: false, error: 'Aucun mandat SEPA configuré pour ce donateur.' };
+    }
+
+    const { createSepaPaymentIntent: sepaIntent } = await import('@/services/stripe.service');
+    const intent = await sepaIntent({
+      customerId: donor.stripe_customer_id,
+      paymentMethodId: donor.stripe_payment_method_id,
+      amount: Math.round(input.montant * 100),
+      metadata: {
+        payment_type: 'prelevement_sepa',
+        donor_id: input.donorId,
+        leader_id: input.leaderId ?? '',
+        project_id: input.projectId,
+      },
+    });
+
+    revalidatePath('/historique');
+    return { ok: true, data: { paymentIntentId: intent.id } };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Une erreur est survenue.' };
   }

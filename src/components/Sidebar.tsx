@@ -18,7 +18,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/mon-espace', label: 'Mon espace', icon: Star },
-  { href: '/ajouter-don', label: 'Ajouter un don', icon: HandHeart },
+  { href: '/ajouter-don', label: 'Gestions', icon: HandHeart },
   { href: '/historique', label: 'Historique', icon: History },
   { href: '/projets', label: 'Projets', icon: FolderOpen, adminOnly: true },
   { href: '/responsables', label: 'Responsables', icon: Users, adminOnly: true },

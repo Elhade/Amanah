@@ -9,7 +9,6 @@ export interface BalanceTransactionInput {
 
 export async function upsertBalanceTransaction(input: BalanceTransactionInput): Promise<{ id: string } | null> {
   // Cast nécessaire : balance_transactions n'est pas encore dans les types générés
-  // (à régénérer après `supabase db push`)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createServerClient() as any;
   const { data, error } = await supabase

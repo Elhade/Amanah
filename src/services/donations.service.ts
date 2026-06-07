@@ -28,6 +28,7 @@ export interface DonationInput {
   statut?: DonationStatus;
   stripePaymentIntentId?: string;
   balanceTransactionId?: string | null;
+  remittanceId?: string | null;
 }
 
 export async function createDonation(input: DonationInput): Promise<{ id: string }> {
@@ -43,6 +44,7 @@ export async function createDonation(input: DonationInput): Promise<{ id: string
       statut: input.statut ?? 'processing',
       stripe_payment_intent_id: input.stripePaymentIntentId ?? null,
       balance_transaction_id: input.balanceTransactionId ?? null,
+      remittance_id: input.remittanceId ?? null,
     })
     .select('id')
     .single();

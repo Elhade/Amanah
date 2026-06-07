@@ -93,6 +93,31 @@ export async function POST(req: NextRequest) {
         const btId = await extractAndStoreBalanceTransaction(intent);
         await updateRemittanceStatut(remittance.id, 'cash_remitted', undefined, btId);
         await updateDonationsStatutByRemittance(remittance.id, 'cash_remitted');
+
+        // Don personnel inclus dans ce virement (créé APRÈS le bulk update pour rester 'paid')
+        if (meta.personal_amount && meta.personal_donor_id && meta.personal_project_id) {
+          const personalDon = await createDonation({
+            donorId: meta.personal_donor_id,
+            leaderId: meta.leader_id || null,
+            projectId: meta.personal_project_id,
+            montant: parseFloat(meta.personal_amount),
+            methode: 'prelevement_sepa',
+            statut: 'paid',
+            stripePaymentIntentId: intent.id,
+            balanceTransactionId: btId,
+            remittanceId: remittance.id,
+          });
+          // Mise à jour du montant personnel sur la remittance pour l'affichage
+          const { createServerClient } = await import('@/lib/supabase/server');
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (createServerClient().from('remittances') as any).update({
+            personal_amount: parseFloat(meta.personal_amount),
+            personal_donor_id: meta.personal_donor_id,
+            personal_project_id: meta.personal_project_id,
+          }).eq('id', remittance.id);
+          void personalDon; // évite unused warning
+        }
+
         revalidatePath('/');
 
       } else if (meta.payment_type === 'prelevement_sepa') {

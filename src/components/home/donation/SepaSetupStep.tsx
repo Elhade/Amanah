@@ -214,23 +214,26 @@ export function SepaSetupStep({ amount = 0, onSuccess, ...props }: Props) {
           )}
         </div>
 
-        <input
-          type="text"
-          placeholder="Nom complet *"
-          value={localName}
-          onChange={e => setLocalName(e.target.value)}
-          className={inputClass}
-          autoComplete="name"
-        />
-
-        <input
-          type="email"
-          placeholder="Adresse e-mail *"
-          value={localEmail}
-          onChange={e => setLocalEmail(e.target.value)}
-          className={inputClass}
-          autoComplete="email"
-        />
+        {isNew && (
+          <>
+            <input
+              type="text"
+              placeholder="Nom complet *"
+              value={localName}
+              onChange={e => setLocalName(e.target.value)}
+              className={inputClass}
+              autoComplete="name"
+            />
+            <input
+              type="email"
+              placeholder="Adresse e-mail *"
+              value={localEmail}
+              onChange={e => setLocalEmail(e.target.value)}
+              className={inputClass}
+              autoComplete="email"
+            />
+          </>
+        )}
 
         <input
           type="tel"

@@ -72,7 +72,8 @@ export type SetupIntentData = {
 
 /** Crée (ou réutilise) le client Stripe du donateur lié et génère un SetupIntent SEPA sans débit. */
 export async function createSetupIntentForLeaderAction(
-  leaderId: string
+  leaderId: string,
+  callerEmail?: string,
 ): Promise<ActionResult<SetupIntentData>> {
   try {
     const supabase = createServerClient();
@@ -97,12 +98,19 @@ export async function createSetupIntentForLeaderAction(
       return { ok: false, error: 'Compte donateur introuvable.' };
     }
 
-    let customerId = (donor as { id: string; nom: string; email: string | null; stripe_customer_id: string | null }).stripe_customer_id;
+    const typedDonor = donor as { id: string; nom: string; email: string | null; stripe_customer_id: string | null };
+    // callerEmail vient du composant client (user.email depuis useAuth) : fallback fiable
+    const resolvedEmail = typedDonor.email || callerEmail || '';
+    if (!typedDonor.email && resolvedEmail) {
+      await supabase.from('donors').update({ email: resolvedEmail }).eq('id', donor.id);
+    }
+
+    let customerId = typedDonor.stripe_customer_id;
 
     if (!customerId) {
       const customer = await stripe.customers.create({
-        name: (donor as { nom: string }).nom,
-        email: (donor as { email: string | null }).email ?? undefined,
+        name: typedDonor.nom,
+        email: resolvedEmail || undefined,
         metadata: { donor_id: donor.id },
       });
       customerId = customer.id;
@@ -124,8 +132,8 @@ export async function createSetupIntentForLeaderAction(
       data: {
         clientSecret: setupIntent.client_secret,
         donorId: donor.id,
-        donorName: (donor as { nom: string }).nom,
-        donorEmail: (donor as { email: string | null }).email ?? '',
+        donorName: typedDonor.nom,
+        donorEmail: resolvedEmail,
         customerId,
       },
     };

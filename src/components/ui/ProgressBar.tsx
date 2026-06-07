@@ -32,10 +32,10 @@ export function ProgressBar({
         </div>
       )}
       <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden flex">
-        <div className={`h-full ${color} transition-all duration-700 ease-out`}           style={{ width: `${pctCard}%` }} />
-        <div className="h-full bg-emerald-300 transition-all duration-700 ease-out"        style={{ width: `${pctSepa}%` }} />
-        <div className="h-full bg-amber-400 transition-all duration-700 ease-out"          style={{ width: `${pctRemitted}%` }} />
-        <div className="h-full bg-amber-200 transition-all duration-700 ease-out"          style={{ width: `${pctReceived}%` }} />
+        {/* Vert : encaissé (card + SEPA + espèces versées) */}
+        <div className={`h-full ${color} transition-all duration-700 ease-out`} style={{ width: `${pctCard + pctSepa + pctRemitted}%` }} />
+        {/* Orange : espèces en attente */}
+        <div className="h-full bg-amber-400 transition-all duration-700 ease-out" style={{ width: `${pctReceived}%` }} />
       </div>
     </div>
   );

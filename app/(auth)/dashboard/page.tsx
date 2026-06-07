@@ -48,9 +48,14 @@ function DonutChart({ segments, total }: { segments: Segment[]; total: number })
 
 interface LeaderStat { leader: Leader; total: number; count: number; }
 
-function ClassementCard({ leaderStats, leaderMax, fmt, className = '' }: {
+const RANK_STYLES = [
+  { badge: 'bg-amber-400 text-white',  row: 'rgba(251,191,36,0.10)'  }, // or
+  { badge: 'bg-gray-300 text-white',   row: 'rgba(209,213,219,0.25)' }, // argent
+  { badge: 'bg-amber-700 text-white',  row: 'rgba(180,83,9,0.08)'    }, // bronze
+];
+
+function ClassementCard({ leaderStats, fmt, className = '' }: {
   leaderStats: LeaderStat[];
-  leaderMax: number;
   fmt: (n: number) => string;
   className?: string;
 }) {
@@ -62,22 +67,17 @@ function ClassementCard({ leaderStats, leaderMax, fmt, className = '' }: {
       </div>
       <div className="px-4 pb-4 divide-y divide-gray-50">
         {leaderStats.map(({ leader, total, count }, i) => {
-          const relPct = leaderMax > 0 ? Math.round(total / leaderMax * 100) : 0;
+          const style = RANK_STYLES[i];
           return (
-            <div key={leader.id} className="py-3">
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className={`w-5 h-5 rounded text-xs font-bold flex items-center justify-center flex-shrink-0 ${
-                  i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-gray-300 text-white' : i === 2 ? 'bg-amber-700 text-white' : 'text-gray-400 bg-gray-100'
-                }`}>{i + 1}</span>
-                <span className="text-xs font-medium text-gray-800 flex-1 truncate">{leader.nom_equipe || leader.nom_affichage}</span>
-                <span className="text-xs font-bold text-gray-900 whitespace-nowrap">{fmt(total)}</span>
+            <div key={leader.id} className="flex items-center gap-3 py-3">
+              <span className={`w-6 h-6 rounded-lg text-xs font-bold flex items-center justify-center flex-shrink-0 ${
+                style ? style.badge : 'bg-gray-100 text-gray-400'
+              }`}>{i + 1}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-gray-800 truncate">{leader.nom_equipe || leader.nom_affichage}</p>
+                <p className="text-xs text-gray-400">{count} don{count > 1 ? 's' : ''}</p>
               </div>
-              <div className="flex items-center gap-2 pl-7">
-                <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                  <div className={`h-full rounded-full transition-all duration-700 ${i === 0 ? 'bg-amber-400' : 'bg-gray-300'}`} style={{ width: `${relPct}%` }} />
-                </div>
-                <span className="text-xs text-gray-400">{count} don{count > 1 ? 's' : ''}</span>
-              </div>
+              <span className={`text-sm font-bold whitespace-nowrap ${i === 0 ? 'text-amber-600' : 'text-gray-700'}`}>{fmt(total)}</span>
             </div>
           );
         })}
@@ -138,10 +138,10 @@ export default function DashboardPage() {
     scopedDonations.filter(d => d.statut === 'cash_received'),
   [scopedDonations]);
 
-  // Total encaissé = Stripe paid + cash versé
+  // Total collecté = tout ce qui est engagé (paid + cashRemitted + cashReceived)
   const totalSettled = useMemo(() =>
-    [...settled, ...cashRemitted].reduce((s, d) => s + d.montant, 0),
-  [settled, cashRemitted]);
+    [...settled, ...cashRemitted, ...cashReceived].reduce((s, d) => s + d.montant, 0),
+  [settled, cashRemitted, cashReceived]);
   // Montant en attente de versement
   const totalPending = useMemo(() =>
     cashReceived.reduce((s, d) => s + d.montant, 0),
@@ -173,7 +173,7 @@ export default function DashboardPage() {
       .map((l, i) => ({ label: l.leader.nom_equipe || l.leader.nom_affichage, value: l.total, color: PALETTE[i % PALETTE.length] })),
   [leaderStats]);
   const donutTotal = useMemo(() => leaderSegments.reduce((s, seg) => s + seg.value, 0), [leaderSegments]);
-  const leaderMax  = useMemo(() => leaderStats[0]?.total || 1, [leaderStats]);
+
 
   const projectStats = useMemo(() => {
     if (!data) return [];
@@ -202,10 +202,24 @@ export default function DashboardPage() {
     return donFrais + remFrais;
   }, [data]);
 
+  // Frais par don pour les espèces : frais de la remittance / nombre de dons couverts
+  const remittanceFeePerDon = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!data) return map;
+    for (const r of data.allRemittances) {
+      if (r.balance_transactions?.fee) {
+        const count = data.allDonations.filter(d => d.remittance_id === r.id).length || 1;
+        map.set(r.id, r.balance_transactions.fee / count);
+      }
+    }
+    return map;
+  }, [data]);
+
   const methodStats = useMemo(() => {
-    const total = scopedDonations.length;
+    const engaged = scopedDonations.filter(d => ['paid', 'cash_remitted', 'cash_received'].includes(d.statut));
+    const total = engaged.length;
     return METHOD_CONFIG.map(({ label, methode, bar }) => {
-      const dons = scopedDonations.filter(d => d.methode === methode);
+      const dons = engaged.filter(d => d.methode === methode);
       return { label, bar, count: dons.length, montant: dons.reduce((s, d) => s + d.montant, 0),
         pct: total ? Math.round(dons.length / total * 100) : 0 };
     }).filter(s => s.count > 0);
@@ -222,13 +236,78 @@ export default function DashboardPage() {
     );
   }
 
+  const totalNet = totalSettled - totalFrais;
+
   const kpiCards = (
     <>
-      <StatCard title="Total encaissé"      value={fmt(totalSettled)}  icon={DollarSign} iconColor="text-emerald-600" iconBg="bg-emerald-50" subtitle="Carte Bleu + Prélèvement + Espèces versées" />
-      <StatCard title="En attente"          value={fmt(totalPending)}  icon={HandHeart}  iconColor="text-amber-600"   iconBg="bg-amber-50"   subtitle="Espèces chez les leaders" />
-      <StatCard title="Frais Stripe"        value={fmt(totalFrais)}    icon={Receipt}    iconColor="text-rose-600"    iconBg="bg-rose-50"    subtitle="Coût total des transactions" />
-      <StatCard title="Donateurs uniques"   value={donorCount}          icon={Users}      iconColor="text-blue-600"    iconBg="bg-blue-50"    />
-      <StatCard title="Responsables actifs" value={activeLeaders}       icon={TrendingUp} iconColor="text-teal-600"    iconBg="bg-teal-50"    />
+      {/* Total encaissé — col-span-2, layout horizontal */}
+      <div className="col-span-2 bg-white rounded-2xl p-4 sm:p-5 2xl:p-7 shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
+        <div className="flex items-center gap-4 h-full">
+          <div className="bg-emerald-50 p-2 sm:p-3 rounded-xl flex-shrink-0">
+            <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 2xl:w-7 2xl:h-7 text-emerald-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs sm:text-sm font-medium text-gray-500">Total encaissé</p>
+            <p className="text-xl sm:text-2xl 2xl:text-3xl font-bold text-emerald-700 whitespace-nowrap">{fmt(totalNet)}</p>
+            <p className="text-xs text-gray-400 mt-0.5">Net après frais</p>
+          </div>
+          <div className="border-l border-gray-100 pl-4 flex-shrink-0 space-y-1.5">
+            <div className="flex items-center justify-between gap-5">
+              <span className="text-xs text-gray-400">Brut</span>
+              <span className="text-xs font-semibold text-gray-700 whitespace-nowrap">{fmt(totalSettled)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-5">
+              <span className="text-xs text-gray-400">Frais</span>
+              <span className="text-xs font-semibold text-rose-500 whitespace-nowrap">
+                -{totalFrais.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <StatCard title="Frais Stripe" value={fmt(totalFrais)} icon={Receipt} iconColor="text-rose-600" iconBg="bg-rose-50" valueColor="text-rose-600" subtitle="Coût total des transactions" />
+      {/* En attente — carte custom (amber dynamique + count) */}
+      <div className="rounded-2xl p-4 sm:p-5 2xl:p-7 shadow-sm border border-gray-100 bg-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
+        <div className="flex items-start justify-between">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs sm:text-sm font-medium text-gray-500 leading-snug">Espèces<br />en attente</p>
+            <p className={`text-xl sm:text-2xl 2xl:text-3xl font-bold mt-1 whitespace-nowrap ${totalPending > 0 ? 'text-amber-700' : 'text-gray-400'}`}>
+              {fmt(totalPending)}
+            </p>
+            <p className={`text-xs mt-0.5 ${totalPending > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+              {cashReceived.length > 0
+                ? `${cashReceived.length} don${cashReceived.length > 1 ? 's' : ''} · chez les leaders`
+                : 'Aucune espèce en attente'}
+            </p>
+          </div>
+          <div className={`p-2 sm:p-3 rounded-xl flex-shrink-0 ml-2 ${totalPending > 0 ? 'bg-amber-100' : 'bg-gray-50'}`}>
+            <HandHeart className={`w-5 h-5 sm:w-6 sm:h-6 2xl:w-7 2xl:h-7 ${totalPending > 0 ? 'text-amber-600' : 'text-gray-400'}`} />
+          </div>
+        </div>
+      </div>
+
+      {/* Donateurs + Responsables fusionnés */}
+      <div className="col-span-2 sm:col-span-1 bg-white rounded-2xl p-4 sm:p-5 2xl:p-7 shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
+        <div className="flex items-center gap-3 pb-3 mb-3 border-b border-gray-100">
+          <div className="bg-blue-50 p-2 rounded-xl flex-shrink-0">
+            <Users className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Donateurs</p>
+            <p className="text-lg sm:text-xl 2xl:text-2xl font-bold text-gray-900">{donorCount}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="bg-teal-50 p-2 rounded-xl flex-shrink-0">
+            <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-teal-600" />
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Responsables actifs</p>
+            <p className="text-lg sm:text-xl 2xl:text-2xl font-bold text-gray-900">{activeLeaders}</p>
+          </div>
+        </div>
+      </div>
     </>
   );
 
@@ -371,19 +450,19 @@ export default function DashboardPage() {
               {methodStats.length > 0 && (
                 <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between">
                   <span className="text-xs text-gray-500">Total encaissé</span>
-                  <span className="text-xs font-bold text-gray-900">{fmt(scopedDonations.filter(d => d.statut === 'paid').reduce((s, d) => s + d.montant, 0))}</span>
+                  <span className="text-xs font-bold text-gray-900">{fmt(totalSettled)}</span>
                 </div>
               )}
             </div>
           </div>
 
           {/* Classement — visible uniquement sur < xl (intégré dans le flux) */}
-          <ClassementCard leaderStats={leaderStats} leaderMax={leaderMax} fmt={fmt} className="xl:hidden" />
+          <ClassementCard leaderStats={leaderStats} fmt={fmt} className="xl:hidden" />
         </div>
 
         {/* ── Droite sticky : Classement — visible uniquement xl ── */}
         <div className="hidden xl:block xl:sticky xl:top-6">
-          <ClassementCard leaderStats={leaderStats} leaderMax={leaderMax} fmt={fmt} />
+          <ClassementCard leaderStats={leaderStats} fmt={fmt} />
         </div>
 
       </div>
@@ -407,22 +486,29 @@ export default function DashboardPage() {
         ) : (
           <>
             {/* En-têtes colonnes — sm+ */}
-            <div className="hidden sm:grid grid-cols-[1.8fr_1.3fr_1.2fr_110px_110px_90px] gap-4 px-5 2xl:px-7 py-3 bg-gray-50 border-b border-gray-100">
+            <div className="hidden sm:grid grid-cols-[1.8fr_1.3fr_1.2fr_110px_100px_80px_90px] gap-4 px-5 2xl:px-7 py-3 bg-gray-50 border-b border-gray-100">
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Donateur</span>
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Projet</span>
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Équipe</span>
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Méthode</span>
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Montant</span>
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Frais</span>
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Statut</span>
             </div>
             <div className="divide-y divide-gray-50">
               {recentDonations.map((d) => {
-                const canSeeName = isAdmin || d.leader_id === myLeaderId;
+                const canSeeName = isAdmin || d.leader_id === myLeaderId || !d.leader_id;
                 const donorName = canSeeName
                   ? ((d.donors as { nom: string } | null)?.nom || 'Anonyme')
                   : '—';
+                const fee = d.remittance_id
+                  ? (remittanceFeePerDon.get(d.remittance_id) ?? null)
+                  : (d.balance_transactions?.fee ?? null);
+                const feeLabel = fee != null && fee > 0
+                  ? `-${fee.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`
+                  : '—';
                 return (
-                  <div key={d.id} className="flex sm:grid sm:grid-cols-[1.8fr_1.3fr_1.2fr_110px_110px_90px] items-center gap-3 sm:gap-4 px-4 sm:px-5 2xl:px-7 py-3.5 sm:py-4 2xl:py-5 hover:bg-gray-50 transition-colors min-h-[52px] sm:min-h-0">
+                  <div key={d.id} className="flex sm:grid sm:grid-cols-[1.8fr_1.3fr_1.2fr_110px_100px_80px_90px] items-center gap-3 sm:gap-4 px-4 sm:px-5 2xl:px-7 py-3.5 sm:py-4 2xl:py-5 hover:bg-gray-50 transition-colors min-h-[52px] sm:min-h-0">
                     {/* Donateur + date */}
                     <div className="flex-1 sm:flex-none min-w-0">
                       <p className="text-sm 2xl:text-base font-medium text-gray-800 truncate">{donorName}</p>
@@ -440,6 +526,8 @@ export default function DashboardPage() {
                     <div className="hidden sm:block"><MethodBadge method={d.methode} /></div>
                     {/* Montant */}
                     <span className="text-sm 2xl:text-base font-bold text-emerald-600 whitespace-nowrap">{fmt(d.montant)}</span>
+                    {/* Frais */}
+                    <span className="hidden sm:block text-sm 2xl:text-base text-rose-500 whitespace-nowrap">{feeLabel}</span>
                     {/* Statut */}
                     <div className="hidden sm:block"><Badge status={d.statut} method={d.methode} /></div>
                   </div>

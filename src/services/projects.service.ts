@@ -7,7 +7,7 @@ export async function getProjects(): Promise<Project[]> {
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from('projects')
-    .select('id, nom, description, objectif, created_at')
+    .select('id, nom, description, objectif, image_url, created_at')
     .order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message);

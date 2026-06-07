@@ -78,5 +78,5 @@ export interface Remittance {
   balance_transaction_id?: string | null;
   balance_transactions?: Pick<BalanceTransaction, 'amount' | 'fee' | 'net'> | null;
   created_at: string;
-  leaders?: { nom_affichage: string } | null;
+  leaders?: { nom_affichage: string; nom_equipe?: string | null } | null;
 }

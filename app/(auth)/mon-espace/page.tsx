@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { DollarSign, Users, Banknote, Share2, Copy, Check, Edit3, CheckCircle2, XCircle, RefreshCw, ArrowUpCircle, UserCheck, Lock, Receipt } from 'lucide-react';
+import { DollarSign, Users, Banknote, Share2, Copy, Check, Edit3, CheckCircle2, XCircle, RefreshCw, ArrowUpCircle, UserCheck, Lock, Receipt, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatCard } from '@/components/ui/StatCard';
@@ -9,24 +9,33 @@ import { useRouter } from 'next/navigation';
 import { updateLeaderProfileAction, linkExistingDonorToLeaderAction, createAndLinkDonorToLeaderAction, createSetupIntentForLeaderAction, saveLeaderIbanAction } from '@/actions/leaders.actions';
 import type { LinkedDonorInfo, SetupIntentData } from '@/actions/leaders.actions';
 import { getCashReceivedForLeader, triggerCashRemittance } from '@/actions/donation.actions';
+import type { CashReceivedRow } from '@/actions/donation.actions';
 import { AccountCheckStep } from '@/components/home/donation/AccountCheckStep';
 import type { AccountStatus } from '@/components/home/donation/AccountCheckStep';
 import { SepaSetupStep } from '@/components/home/donation/SepaSetupStep';
 import type { Leader, Donation } from '@/types';
 
 export default function MonEspacePage() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const router = useRouter();
   const [myLeader, setMyLeader] = useState<Leader | null>(null);
   const [myDonations, setMyDonations] = useState<Donation[]>([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
-  const [cashPending, setCashPending] = useState<{ id: string; montant: number }[]>([]);
+  const [cashPending, setCashPending] = useState<CashReceivedRow[]>([]);
   const [totalFrais, setTotalFrais] = useState(0);
+  // Modal virement
+  const [showModal, setShowModal] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [personalAmount, setPersonalAmount] = useState('');
+  const [personalProjectId, setPersonalProjectId] = useState('');
+  const [projects, setProjects] = useState<{ id: string; nom: string }[]>([]);
 
   const [editNom, setEditNom] = useState('');
   const [editEquipe, setEditEquipe] = useState('');
   const [editSlug, setEditSlug] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [confirmEmail, setConfirmEmail] = useState('');
   const [editLoading, setEditLoading] = useState(false);
   const [editResult, setEditResult] = useState<{ ok: boolean; message: string } | null>(null);
 
@@ -66,8 +75,15 @@ export default function MonEspacePage() {
       setEditEquipe(leader.nom_equipe ?? '');
       setEditSlug(leader.slug);
     }
+    setEditEmail(user?.email ?? '');
+    setConfirmEmail('');
 
     if (!leader) { setLoading(false); return; }
+
+    const projectsRes = await supabase.from('projects').select('id, nom').order('nom');
+    const loadedProjects = (projectsRes.data ?? []) as { id: string; nom: string }[];
+    setProjects(loadedProjects);
+    if (loadedProjects.length > 0) setPersonalProjectId(p => p || loadedProjects[0].id);
 
     const [donationsRes, cashRes, donorRes, remittancesRes] = await Promise.all([
       supabase.from('donations').select('*, donors(nom), projects(nom), balance_transactions(fee, net, amount)').eq('leader_id', leader.id).order('created_at', { ascending: false }),
@@ -85,7 +101,10 @@ export default function MonEspacePage() {
 
     const donations = (donationsRes.data || []) as unknown as Donation[];
     setMyDonations(donations);
-    if (cashRes.ok) setCashPending(cashRes.data.map(d => ({ id: d.id, montant: d.montant })));
+    if (cashRes.ok) {
+      setCashPending(cashRes.data);
+      setSelectedIds(new Set(cashRes.data.map(d => d.id)));
+    }
 
     const donFrais = donations.reduce((s, d) => s + (d.balance_transactions?.fee ?? 0), 0);
     const remFrais = ((remittancesRes.data ?? []) as unknown as { balance_transactions: { fee: number } | null }[])
@@ -95,15 +114,32 @@ export default function MonEspacePage() {
     setLoading(false);
   };
 
-  const handleVirementEspeces = async () => {
-    if (!myLeader || !cashPending.length) return;
+  const openVirementModal = () => {
+    setSelectedIds(new Set(cashPending.map(d => d.id)));
+    setPersonalAmount('');
+    setRemittanceResult(null);
+    setShowModal(true);
+  };
+
+  const handleConfirmVirement = async () => {
+    if (!myLeader) return;
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
     setRemittanceLoading(true);
     setRemittanceResult(null);
-    const total = cashPending.reduce((s, d) => s + d.montant, 0);
-    const result = await triggerCashRemittance(myLeader.id, cashPending.map(d => d.id));
+    const cashTotal = cashPending.filter(d => selectedIds.has(d.id)).reduce((s, d) => s + d.montant, 0);
+    const perso = parseFloat(personalAmount) || 0;
+    const result = await triggerCashRemittance(
+      myLeader.id,
+      ids,
+      perso > 0 && linkedDonor?.id && personalProjectId
+        ? { personalAmount: perso, personalDonorId: linkedDonor.id, personalProjectId }
+        : undefined
+    );
     if (result.ok) {
+      const total = cashTotal + perso;
       setRemittanceResult({ ok: true, message: `Virement de ${fmt(total)} initié — les dons seront soldés à confirmation Stripe.` });
-      setCashPending([]);
+      setShowModal(false);
       await fetchData();
     } else {
       setRemittanceResult({ ok: false, message: result.error ?? 'Erreur inconnue' });
@@ -120,7 +156,7 @@ export default function MonEspacePage() {
       return;
     }
     setDonorSubmitting(true);
-    const intentResult = await createSetupIntentForLeaderAction(myLeader!.id);
+    const intentResult = await createSetupIntentForLeaderAction(myLeader!.id, user?.email ?? '');
     setDonorSubmitting(false);
     if (intentResult.ok) {
       setSetupIntentData(intentResult.data);
@@ -176,10 +212,29 @@ export default function MonEspacePage() {
     if (!myLeader) return;
     setEditLoading(true);
     setEditResult(null);
+
+    // Mise à jour email si modifié
+    const currentEmail = user?.email ?? '';
+    const emailChanged = editEmail.trim() && editEmail.trim() !== currentEmail;
+    if (emailChanged) {
+      if (editEmail.trim() !== confirmEmail.trim()) {
+        setEditResult({ ok: false, message: 'Les adresses e-mail ne correspondent pas.' });
+        setEditLoading(false);
+        return;
+      }
+      const { error: emailErr } = await supabase.auth.updateUser({ email: editEmail.trim() });
+      if (emailErr) {
+        setEditResult({ ok: false, message: `Erreur email : ${emailErr.message}` });
+        setEditLoading(false);
+        return;
+      }
+    }
+
     const result = await updateLeaderProfileAction(myLeader.id, { nom_affichage: editNom, nom_equipe: editEquipe || null, slug: editSlug });
     if (result.ok) {
-      setEditResult({ ok: true, message: 'Profil mis à jour.' });
+      setEditResult({ ok: true, message: emailChanged ? 'Profil mis à jour. Un lien de confirmation a été envoyé à votre nouvelle adresse.' : 'Profil mis à jour.' });
       setMyLeader(l => l ? { ...l, nom_affichage: editNom, nom_equipe: editEquipe || null, slug: editSlug } : l);
+      if (emailChanged) setConfirmEmail('');
     } else {
       setEditResult({ ok: false, message: result.error });
     }
@@ -248,17 +303,54 @@ export default function MonEspacePage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatCard title="Total collecté" value={fmt(myTotal)} icon={DollarSign} iconColor="text-emerald-600" iconBg="bg-emerald-50" />
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+
+        {/* Total collecté — col-span-2, layout horizontal avec brut / frais / net */}
+        <div className="col-span-2 bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
+          <div className="flex items-center gap-4 h-full">
+            <div className="bg-emerald-50 p-2 sm:p-3 rounded-xl flex-shrink-0">
+              <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-gray-500">Total collecté</p>
+              <p className="text-xl sm:text-2xl font-bold text-emerald-700 whitespace-nowrap">{fmt(myTotal - totalFrais)}</p>
+              <p className="text-xs text-gray-400 mt-0.5">Net après frais</p>
+            </div>
+            <div className="border-l border-gray-100 pl-4 flex-shrink-0 space-y-1.5">
+              <div className="flex items-center justify-between gap-5">
+                <span className="text-xs text-gray-400">Brut</span>
+                <span className="text-xs font-semibold text-gray-700 whitespace-nowrap">{fmt(myTotal)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-5">
+                <span className="text-xs text-gray-400">Frais</span>
+                <span className="text-xs font-semibold text-rose-500 whitespace-nowrap">
+                  -{totalFrais.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <StatCard title="Frais Stripe" value={fmt(totalFrais)} icon={Receipt} iconColor="text-rose-600" iconBg="bg-rose-50" valueColor="text-rose-600" subtitle="Coût des transactions" />
+        {/* Espèces en attente — carte custom pour éviter la troncature du titre */}
+        <div className="rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100 bg-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-gray-500 leading-snug">Espèces<br />en attente</p>
+              <p className={`text-xl sm:text-2xl font-bold mt-1 whitespace-nowrap ${cashPendingTotal > 0 ? 'text-amber-700' : 'text-gray-400'}`}>
+                {fmt(cashPendingTotal)}
+              </p>
+              <p className={`text-xs mt-0.5 ${cashPendingTotal > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                {cashPending.length > 0 ? `${cashPending.length} don${cashPending.length > 1 ? 's' : ''}` : 'Aucun don'}
+              </p>
+            </div>
+            <div className={`p-2 sm:p-3 rounded-xl flex-shrink-0 ml-2 ${cashPendingTotal > 0 ? 'bg-amber-100' : 'bg-gray-50'}`}>
+              <Banknote className={`w-5 h-5 sm:w-6 sm:h-6 ${cashPendingTotal > 0 ? 'text-amber-600' : 'text-gray-400'}`} />
+            </div>
+          </div>
+        </div>
         <StatCard title="Donateurs" value={uniqueDonors} icon={Users} iconColor="text-blue-600" iconBg="bg-blue-50" />
-        <StatCard
-          title="Espèces en attente"
-          value={fmt(cashPendingTotal)}
-          icon={Banknote}
-          iconColor={cashPendingTotal > 0 ? 'text-amber-600' : 'text-gray-400'}
-          iconBg={cashPendingTotal > 0 ? 'bg-amber-50' : 'bg-gray-50'}
-        />
-        <StatCard title="Frais Stripe" value={fmt(totalFrais)} icon={Receipt} iconColor="text-rose-600" iconBg="bg-rose-50" />
+
       </div>
 
       {/* Bandeau virement espèces */}
@@ -276,7 +368,7 @@ export default function MonEspacePage() {
             </div>
           </div>
           <button
-            onClick={handleVirementEspeces}
+            onClick={openVirementModal}
             disabled={remittanceLoading}
             className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl font-medium text-sm transition-all"
           >
@@ -296,6 +388,114 @@ export default function MonEspacePage() {
       )}
 
       {/* Grille principale : profil à gauche, compte donateur + lien à droite */}
+      {/* ── Modal virement ── */}
+      {showModal && (() => {
+        const selectedList = cashPending.filter(d => selectedIds.has(d.id));
+        const cashTotal = selectedList.reduce((s, d) => s + d.montant, 0);
+        const perso = parseFloat(personalAmount) || 0;
+        const totalSepa = cashTotal + perso;
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
+
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+                <h2 className="font-semibold text-gray-900">Virement d&apos;espèces</h2>
+                <button onClick={() => setShowModal(false)} className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Corps scrollable */}
+              <div className="overflow-y-auto px-6 py-4 space-y-2 flex-1">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Dons à inclure</p>
+                {cashPending.map(d => (
+                  <label key={d.id} className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(d.id)}
+                      onChange={() => setSelectedIds(prev => {
+                        const next = new Set(prev);
+                        next.has(d.id) ? next.delete(d.id) : next.add(d.id);
+                        return next;
+                      })}
+                      className="w-4 h-4 rounded accent-emerald-600"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{d.donorNom}</p>
+                      <p className="text-xs text-gray-400">{d.projectNom}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">{fmt(d.montant)}</span>
+                  </label>
+                ))}
+
+                {/* Don personnel */}
+                {linkedDonor?.hasSEPA && (
+                  <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Don personnel <span className="font-normal normal-case text-gray-400">(optionnel)</span></p>
+                    <div className="flex gap-2">
+                      <select
+                        value={personalProjectId}
+                        onChange={e => setPersonalProjectId(e.target.value)}
+                        className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-800 focus:outline-none focus:border-emerald-400 bg-white"
+                      >
+                        {projects.map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
+                      </select>
+                      <div className="relative w-32">
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={personalAmount}
+                          onChange={e => setPersonalAmount(e.target.value)}
+                          placeholder="Montant"
+                          className="w-full pl-3 pr-6 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-emerald-400"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">€</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer récapitulatif */}
+              <div className="px-6 py-4 border-t border-gray-100 flex-shrink-0 space-y-3">
+                <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-1 text-sm">
+                  <div className="flex justify-between text-gray-600">
+                    <span>{selectedList.length} don{selectedList.length > 1 ? 's' : ''} espèces</span>
+                    <span className="font-medium">{fmt(cashTotal)}</span>
+                  </div>
+                  {perso > 0 && (
+                    <div className="flex justify-between text-blue-600">
+                      <span>Don personnel</span>
+                      <span className="font-medium">{fmt(perso)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-semibold text-gray-900 pt-1 border-t border-gray-200 mt-1">
+                    <span>Total SEPA</span>
+                    <span>{fmt(totalSepa)}</span>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all">
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleConfirmVirement}
+                    disabled={remittanceLoading || selectedList.length === 0}
+                    className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
+                  >
+                    {remittanceLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowUpCircle className="w-4 h-4" />}
+                    Confirmer {fmt(totalSepa)}
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
+
       {myLeader && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
@@ -316,6 +516,36 @@ export default function MonEspacePage() {
                   className={inputCls}
                   placeholder="Votre nom affiché aux donateurs"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Adresse e-mail</label>
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={e => { setEditEmail(e.target.value); setConfirmEmail(''); setEditResult(null); }}
+                    className={inputCls}
+                    placeholder="votre@email.com"
+                    autoComplete="email"
+                  />
+                </div>
+                {editEmail.trim() && editEmail.trim() !== (user?.email ?? '') && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirmer l&apos;adresse e-mail</label>
+                    <input
+                      type="email"
+                      value={confirmEmail}
+                      onChange={e => { setConfirmEmail(e.target.value); setEditResult(null); }}
+                      className={`${inputCls} ${confirmEmail && confirmEmail !== editEmail ? 'border-red-300 focus:border-red-400 focus:ring-red-400/40' : ''}`}
+                      placeholder="votre@email.com"
+                      autoComplete="off"
+                    />
+                    {confirmEmail && confirmEmail !== editEmail && (
+                      <p className="text-xs text-red-500 mt-1">Les adresses ne correspondent pas.</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -484,7 +714,7 @@ export default function MonEspacePage() {
                     donorId={setupIntentData.donorId}
                     clientSecret={setupIntentData.clientSecret}
                     donorName={setupIntentData.donorName}
-                    donorEmail={setupIntentData.donorEmail}
+                    donorEmail={setupIntentData.donorEmail || user?.email || ''}
                     onSuccess={handleIbanSuccess}
                   />
                   <button
@@ -514,7 +744,7 @@ export default function MonEspacePage() {
                   {!linkedDonor.hasSEPA && (
                     <button
                       onClick={async () => {
-                        const intentResult = await createSetupIntentForLeaderAction(myLeader!.id);
+                        const intentResult = await createSetupIntentForLeaderAction(myLeader!.id, user?.email ?? '');
                         if (intentResult.ok) { setSetupIntentData(intentResult.data); setIbanError(''); setDonorSetupPhase('iban'); }
                         else setIbanError(intentResult.error);
                       }}
