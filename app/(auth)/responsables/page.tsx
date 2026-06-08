@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Users, Plus, Copy, Check, CreditCard as Edit3, Trash2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/lib/contexts/AuthContext';
-import type { Leader, Profile } from '@/lib/types';
+import { useAuth } from '@/contexts/AuthContext';
+import type { Leader, Profile } from '@/types';
 
 export default function ResponsablesPage() {
   const { profile, loading: authLoading } = useAuth();
@@ -74,7 +74,7 @@ export default function ResponsablesPage() {
   };
 
   const copyLink = (slug: string, id: string) => {
-    const link = `${window.location.origin}/don?ref=${slug}`;
+    const link = `${window.location.origin}/?ref=${slug}`;
     navigator.clipboard.writeText(link);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -124,7 +124,7 @@ export default function ResponsablesPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Slug (URL)</label>
               <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-emerald-400/40 focus-within:border-emerald-400 transition-all">
-                <span className="px-3 py-3 bg-gray-50 text-gray-400 text-sm border-r border-gray-200">/don?ref=</span>
+                <span className="px-3 py-3 bg-gray-50 text-gray-400 text-sm border-r border-gray-200">/?ref=</span>
                 <input type="text" value={form.slug} onChange={e => setForm(f => ({ ...f, slug: e.target.value }))} className="flex-1 px-3 py-3 text-sm focus:outline-none" placeholder="frere-ahmed" />
               </div>
             </div>

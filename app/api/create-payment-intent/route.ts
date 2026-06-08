@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', {
-  apiVersion: '2023-10-16',
-});
+import { createCardPaymentIntent } from '@/services/stripe.service';
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,13 +9,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Montant invalide (minimum 0.50 €)' }, { status: 400 });
     }
 
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount),
-      currency: currency ?? 'eur',
-      automatic_payment_methods: { enabled: true },
-      metadata: metadata ?? {},
-    });
-
+    const paymentIntent = await createCardPaymentIntent({ amount, currency, metadata });
+   
     return NextResponse.json({ clientSecret: paymentIntent.client_secret });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Erreur interne';
