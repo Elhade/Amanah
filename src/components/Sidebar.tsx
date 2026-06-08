@@ -1,42 +1,33 @@
-import React, { useState } from 'react';
+'use client';
+
+import { useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import {
-  LayoutDashboard,
-  HandHeart,
-  History,
-  FolderOpen,
-  Users,
-  LogOut,
-  Menu,
-  X,
-  Star,
-  ChevronRight,
+  LayoutDashboard, HandHeart, History, FolderOpen, Users,
+  LogOut, Menu, X, Star, ChevronRight,
 } from 'lucide-react';
-import type { Page } from '../types';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface NavItem {
-  id: Page;
+  href: string;
   label: string;
   icon: React.ElementType;
   adminOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
-  { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
-  { id: 'leader-dashboard', label: 'Mon espace', icon: Star },
-  { id: 'add-donation', label: 'Ajouter un don', icon: HandHeart },
-  { id: 'history', label: 'Historique', icon: History },
-  { id: 'projects', label: 'Projets', icon: FolderOpen, adminOnly: true },
-  { id: 'leaders', label: 'Responsables', icon: Users, adminOnly: true },
+  { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+  { href: '/mon-espace', label: 'Mon espace', icon: Star },
+  { href: '/ajouter-don', label: 'Gestions', icon: HandHeart },
+  { href: '/historique', label: 'Historique', icon: History },
+  { href: '/projets', label: 'Projets', icon: FolderOpen, adminOnly: true },
+  { href: '/responsables', label: 'Responsables', icon: Users, adminOnly: true },
 ];
 
-interface SidebarProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
-}
-
-export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
+export function Sidebar() {
   const { profile, signOut } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const isAdmin = profile?.role === 'super_admin';
 
@@ -73,11 +64,11 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       <nav className="flex-1 px-4 space-y-1">
         {filteredItems.map((item) => {
           const Icon = item.icon;
-          const active = currentPage === item.id;
+          const active = pathname === item.href;
           return (
             <button
-              key={item.id}
-              onClick={() => { onNavigate(item.id); setMobileOpen(false); }}
+              key={item.href}
+              onClick={() => { router.push(item.href); setMobileOpen(false); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group ${
                 active
                   ? 'bg-amber-400 text-white shadow-lg shadow-amber-400/25'
