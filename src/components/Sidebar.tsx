@@ -41,7 +41,7 @@ export function Sidebar() {
             <HandHeart className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-white font-bold text-lg leading-tight">JamaaAmanah</h1>
+            <h1 className="text-white font-bold text-lg leading-tight">Amanah</h1>
             <p className="text-emerald-300 text-xs">La confiance au cœur des dons</p>
           </div>
         </div>

@@ -1,4 +1,4 @@
-# JamaaAmanah — Plateforme de gestion des dons
+# Amanah — Plateforme de gestion des dons
 
 > *La confiance au cœur de vos dons*
 
@@ -8,7 +8,7 @@
 
 ## Présentation
 
-JamaaAmanah est une application web complète de collecte et gestion des dons caritatifs. Elle permet de suivre les donations par projet, par responsable (leader) et par méthode de paiement (carte bancaire via Stripe ou espèces), avec un tableau de bord d'administration complet et des espaces personnels pour chaque responsable.
+Amanah est une application web complète de collecte et gestion des dons caritatifs. Elle permet de suivre les donations par projet, par responsable (leader) et par méthode de paiement (carte bancaire via Stripe ou espèces), avec un tableau de bord d'administration complet et des espaces personnels pour chaque responsable.
 
 ---
 

@@ -1,5 +1,5 @@
 -- =================================================================
--- SEED DATA v2 – JamaaAmanah
+-- SEED DATA v2 – Amanah
 -- 10 dons par leader × par projet = 200 dons au total
 --
 -- Comptes (mot de passe : Amanah2024!)

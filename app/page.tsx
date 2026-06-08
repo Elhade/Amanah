@@ -8,7 +8,7 @@ import { getLeaderBySlug } from '@/services/leaders.service';
 import { ProjectGrid } from '@/components/home/ProjectGrid';
 
 export const metadata: Metadata = {
-  title: 'JamaaAmanah — Donnez du sens à votre générosité',
+  title: 'Amanah — Donnez du sens à votre générosité',
   description:
     'Participez à des projets humanitaires et faites une différence dans la vie des nécessiteux.',
 };
@@ -40,7 +40,7 @@ export default async function HomePage({ searchParams }: Props) {
             <div className="w-10 h-10 rounded-2xl bg-amber-400 flex items-center justify-center shadow-lg shadow-amber-400/30">
               <Heart className="w-5 h-5 text-white fill-white" />
             </div>
-            <span className="font-bold text-white text-lg">JamaaAmanah</span>
+            <span className="font-bold text-white text-lg">Amanah</span>
           </div>
           <Link
             href="/login"
@@ -64,7 +64,7 @@ export default async function HomePage({ searchParams }: Props) {
 
         {/* Footer */}
         <div className="mt-8 flex items-center justify-between text-xs text-emerald-400/50">
-          <span>© {new Date().getFullYear()} JamaaAmanah</span>
+          <span>© {new Date().getFullYear()} Amanah</span>
           <Link href="/login" className="hover:text-emerald-300 transition-colors">
             Espace responsable
           </Link>

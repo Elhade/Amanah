@@ -3,7 +3,7 @@ import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 
 export const metadata: Metadata = {
-  title: 'JamaaAmanah — Gestion des dons',
+  title: 'Amanah — Gestion des dons',
   description: 'La confiance au cœur de vos dons',
 };
 

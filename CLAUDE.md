@@ -15,7 +15,7 @@ No test suite is configured. Verify changes by running the dev server.
 
 ## Architecture
 
-**JamaaAmanah** is a French-language charitable donation platform built with Next.js 14 (App Router), Supabase (Postgres + Auth + Edge Functions), and Stripe.
+**Amanah** is a French-language charitable donation platform built with Next.js 14 (App Router), Supabase (Postgres + Auth + Edge Functions), and Stripe.
 
 ### Key layers
 

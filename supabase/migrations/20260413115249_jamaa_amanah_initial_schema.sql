@@ -1,8 +1,8 @@
 /*
-  # JamaaAmanah - Initial Schema
+  # Amanah - Initial Schema
 
   ## Overview
-  Complete database schema for JamaaAmanah donation management app.
+  Complete database schema for Amanah donation management app.
 
   ## New Tables
 
